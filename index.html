@@ -1,0 +1,168 @@
+<!-- frontend/index.html -->
+<!doctype html>
+<html>
+  <head>
+    <title>Group Chat with Elle (Agno)</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        background: #0f1724;
+        color: #e6eef8;
+        margin: 0;
+        padding: 20px;
+      }
+      .card {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #0b1220;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+      .chat {
+        height: 420px;
+        overflow: auto;
+        background: #061024;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #123;
+        margin-bottom: 10px;
+      }
+      .msg {
+        margin-bottom: 10px;
+        line-height: 1.4;
+      }
+      .sender {
+        font-weight: 700;
+        color: #7fb3ff;
+      }
+      .elle {
+        color: #ffd27a;
+      }
+      input,
+      button {
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: none;
+        outline: none;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        background: #1e293b;
+        color: white;
+        margin-bottom: 8px;
+      }
+      button {
+        background: #1d4ed8;
+        color: white;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1e40af;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      small {
+        font-size: 0.8em;
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>💬 Group Chat with Elle (Agno AI)</h2>
+      <div class="row">
+        <input id="room" value="group1" placeholder="Room ID" />
+        <input id="name" value="Guest" placeholder="Your Name" />
+        <button id="join">Join Chat</button>
+      </div>
+      <div id="chat" class="chat"></div>
+      <div class="row">
+        <input id="msg" placeholder="Type a message (use @elle to talk to AI)" />
+        <button id="send">Send</button>
+      </div>
+      <p style="font-size:13px; opacity:0.8; margin-top: 10px;">
+        💡 Tip: Open multiple tabs with different names to simulate a group chat.
+      </p>
+    </div>
+
+    <script>
+      let ws = null;
+
+      // 🔥 UPDATE THIS TO YOUR RENDER BACKEND URL
+      const BACKEND_HOST = "wss://chat-backend.onrender.com";  // ← your actual backend URL
+
+      document.getElementById("join").onclick = connect;
+      document.getElementById("send").onclick = send;
+      document.getElementById("msg").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") send();
+      });
+
+      function connect() {
+        const room = encodeURIComponent(document.getElementById("room").value || "group1");
+        const name = encodeURIComponent(document.getElementById("name").value || "Guest");
+
+        if (ws) ws.close();
+
+        ws = new WebSocket(`${BACKEND_HOST}/ws/${room}/${name}`);
+
+        ws.onopen = () => appendSystem(`✅ Connected to "${room}" as ${name}`);
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === "message") {
+            appendMessage(data.payload.sender, data.payload.text, data.payload.ts);
+          } else if (data.type === "system") {
+            appendSystem(data.payload);
+          }
+        };
+        ws.onclose = () => appendSystem("⚠️ Disconnected");
+        ws.onerror = () => appendSystem("❌ Connection error");
+      }
+
+      function send() {
+        const input = document.getElementById("msg");
+        const text = input.value.trim();
+        if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+        ws.send(JSON.stringify({ type: "message", text }));
+        input.value = "";
+      }
+
+      function appendSystem(text) {
+        const chat = document.getElementById("chat");
+        const div = document.createElement("div");
+        div.className = "msg";
+        div.innerHTML = `<em style="color:#9ab1d9">${text}</em>`;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      function appendMessage(sender, text, ts) {
+        const chat = document.getElementById("chat");
+        const div = document.createElement("div");
+        div.className = "msg";
+        const time = new Date(ts * 1000).toLocaleTimeString();
+        const isElle = sender === "Elle";
+        const senderClass = isElle ? 'style="color:#ffd27a"' : 'class="sender"';
+        div.innerHTML = `
+          <div ${senderClass}>${sender} <small>${time}</small></div>
+          <div>${escapeHtml(text)}</div>
+        `;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      function escapeHtml(unsafe) {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "<")
+          .replace(/>/g, ">");
+      }
+    </script>
+  </body>
+</html>
